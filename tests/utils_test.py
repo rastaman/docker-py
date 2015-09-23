@@ -1,7 +1,12 @@
+# -*- coding: utf-8 -*-
+
 import os
 import os.path
 import shutil
 import tempfile
+
+import pytest
+import six
 
 from docker.client import Client
 from docker.constants import DEFAULT_DOCKER_API_VERSION
@@ -9,7 +14,7 @@ from docker.errors import DockerException
 from docker.utils import (
     parse_repository_tag, parse_host, convert_filters, kwargs_from_env,
     create_host_config, Ulimit, LogConfig, parse_bytes, parse_env_file,
-    exclude_paths,
+    exclude_paths, convert_volume_binds,
 )
 from docker.utils.ports import build_port_bindings, split_port
 from docker.auth import resolve_repository_name, resolve_authconfig
@@ -17,7 +22,6 @@ from docker.auth import resolve_repository_name, resolve_authconfig
 from . import base
 from .helpers import make_tree
 
-import pytest
 
 TEST_CERT_DIR = os.path.join(
     os.path.dirname(__file__),
@@ -44,6 +48,66 @@ class UtilsTest(base.BaseTestCase):
 
     def tearDown(self):
         os.environ = self.os_environ
+
+    def test_convert_volume_binds_empty(self):
+        self.assertEqual(convert_volume_binds({}), [])
+        self.assertEqual(convert_volume_binds([]), [])
+
+    def test_convert_volume_binds_list(self):
+        data = ['/a:/a:ro', '/b:/c:z']
+        self.assertEqual(convert_volume_binds(data), data)
+
+    def test_convert_volume_binds_complete(self):
+        data = {
+            '/mnt/vol1': {
+                'bind': '/data',
+                'mode': 'ro'
+            }
+        }
+        self.assertEqual(convert_volume_binds(data), ['/mnt/vol1:/data:ro'])
+
+    def test_convert_volume_binds_compact(self):
+        data = {
+            '/mnt/vol1': '/data'
+        }
+        self.assertEqual(convert_volume_binds(data), ['/mnt/vol1:/data:rw'])
+
+    def test_convert_volume_binds_no_mode(self):
+        data = {
+            '/mnt/vol1': {
+                'bind': '/data'
+            }
+        }
+        self.assertEqual(convert_volume_binds(data), ['/mnt/vol1:/data:rw'])
+
+    def test_convert_volume_binds_unicode(self):
+        expected = ['/mnt/지연:/unicode/박:rw']
+
+        if six.PY2:
+            expected[0] = expected[0].decode('utf-8')
+
+        data = {
+            '/mnt/지연': {
+                'bind': '/unicode/박',
+                'mode': 'rw'
+            }
+        }
+        self.assertEqual(
+            convert_volume_binds(data), expected
+        )
+
+    def test_convert_volume_binds_unicode_input(self):
+        expected = [six.u('/mnt/지연:/unicode/박:rw')]
+
+        data = {
+            six.u('/mnt/지연'): {
+                'bind': six.u('/unicode/박'),
+                'mode': 'rw'
+            }
+        }
+        self.assertEqual(
+            convert_volume_binds(data), expected
+        )
 
     def test_parse_repository_tag(self):
         self.assertEqual(parse_repository_tag("root"),
