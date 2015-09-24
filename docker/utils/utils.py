@@ -457,7 +457,8 @@ def create_host_config(
     restart_policy=None, cap_add=None, cap_drop=None, devices=None,
     extra_hosts=None, read_only=None, pid_mode=None, ipc_mode=None,
     security_opt=None, ulimits=None, log_config=None, mem_limit=None,
-    memswap_limit=None, cgroup_parent=None, group_add=None, version=None
+    memswap_limit=None, cgroup_parent=None, group_add=None, version=None,
+    volume_driver=None
 ):
     host_config = {}
 
@@ -600,6 +601,9 @@ def create_host_config(
                 )
             log_config = LogConfig(**log_config)
         host_config['LogConfig'] = log_config
+
+    if volume_driver is not None:
+        host_config['VolumeDriver'] = volume_driver
 
     return host_config
 
